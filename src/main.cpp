@@ -67,7 +67,7 @@ void setup() {
   display.display();
   pinMode(inputPin1, INPUT);
   pinMode(inputPin2, INPUT);
-  //delay(5000);
+  delay(5000);
   display.clearDisplay();
 
 }
