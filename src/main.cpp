@@ -4,6 +4,8 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
+//Programado desde Mac
+
 #define SCREEN_WIDTH 128 
 #define SCREEN_HEIGHT 64
 #define OLED_RESET     4 
@@ -67,7 +69,7 @@ void setup() {
   display.display();
   pinMode(inputPin1, INPUT);
   pinMode(inputPin2, INPUT);
-  //delay(5000);
+  delay(5000);
   display.clearDisplay();
 
 }
