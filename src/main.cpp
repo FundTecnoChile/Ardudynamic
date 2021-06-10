@@ -77,10 +77,12 @@ static const unsigned char PROGMEM logo_bmp2[] =
   };
 // Declaracion de Variables
 
+// Botones
 int inputPin1 = 22;
 int inputPin2 = 26;
 int inputPin3 = 24;
 int inputPin4 = 18;
+// Uso de Codigo
 int Izq;
 int Der;
 int Enter;
@@ -88,7 +90,16 @@ int Back;
 int Menu = 1;
 int Menu2 = 1;
 int Cleardisplaycount = 0;
+// Pines
 const int encoderPin = 39;
+const int AIA = 47;  
+const int AIB = 45;  
+const int BIA = 43; 
+const int BIB = 41;
+
+// cambie este valor (100 a 255) para controlar 
+// la velocidad de los motores 
+byte velocidad = 100;  
 
 void setup() {
   Serial.begin(9600);
@@ -144,6 +155,10 @@ void setup() {
   pinMode(inputPin4, INPUT);
   pinMode(TEMT6000_PIN,  INPUT); 
   pinMode(encoderPin , INPUT); 
+  pinMode(AIA, OUTPUT); // fijar los pines como salidas
+  pinMode(AIB, OUTPUT);
+  pinMode(BIA, OUTPUT);
+  pinMode(BIB, OUTPUT);
   display.clearDisplay();
 
 }
@@ -571,28 +586,60 @@ void SensorLuz(){
   }
 }
 void SensorEncoder(){
-  Serial.println("Pantalla 6");
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(30,5);
-  display.println("Encoder/Motor");
-  display.setCursor(0,12);
-  display.println("_____________________");
-  display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.drawBitmap((display.width()  - LOGO_WIDTH )  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.display();
+  
+  if (Menu2 == 1){
+    
+    Serial.println("Pantalla 6");
+    //Nombre Pantalla
+
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(27,7);
+    display.println("Encoder");
+    display.setCursor(60,28);
+    display.println("&");
+    display.setCursor(34,47);
+    display.println("Motor");
+
+    //Flechas Laterales
+
+    display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 2  , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
+    display.drawBitmap((display.width()  - LOGO_WIDTH ) / 1 , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
+    display.display();
+  }
+  if (Menu2 == 2){
+
+    //Menu Inferior
+
+    display.setTextSize(1);
+    display.setTextColor(WHITE);
+    display.setCursor(0,50);
+    display.println("------");
+    display.setCursor(32,55);
+    display.println("|");
+    display.setCursor(1,55);
+    display.println(" Back");
+    display.display();
+  }
 }
 void SensorPulsoSpO2(){
-  Serial.println("Pantalla 7");
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(44,5);
-  display.println("MAX30102");
-  display.setCursor(0,12);
-  display.println("_____________________");
-  display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.drawBitmap((display.width()  - LOGO_WIDTH )  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.display();
+  if (Menu2 == 1){
+    Serial.println("Pantalla 5");
+
+    //Nombre Pantalla
+
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(17,28);
+    display.println("MAX30102");
+
+    //Flechas Laterales
+    
+    display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
+    display.drawBitmap((display.width()  - LOGO_WIDTH ) /1 , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
+    display.display();
+  }
+
 }
 void LedNeoPixel(){
   Serial.println("Pantalla 8");
@@ -779,6 +826,9 @@ void loop() {
       display.clearDisplay();
       display.display();
       Cleardisplaycount = Cleardisplaycount + 1;
+    }
+    if (Menu2 == 3){
+      Menu2 = Menu2 - 1;
     }
     SensorEncoder();
     delay(100);
