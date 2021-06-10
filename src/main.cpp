@@ -75,7 +75,7 @@ static const unsigned char PROGMEM logo_bmp2[] =
   B00000000, B11000000, 
   B00000000, B10000000, 
   };
-// Declaracion de Constantes
+// Declaracion de Variables
 
 int inputPin1 = 22;
 int inputPin2 = 26;
@@ -88,6 +88,7 @@ int Back;
 int Menu = 1;
 int Menu2 = 1;
 int Cleardisplaycount = 0;
+const int encoderPin = 39;
 
 void setup() {
   Serial.begin(9600);
@@ -142,6 +143,7 @@ void setup() {
   pinMode(inputPin3, INPUT);
   pinMode(inputPin4, INPUT);
   pinMode(TEMT6000_PIN,  INPUT); 
+  pinMode(encoderPin , INPUT); 
   display.clearDisplay();
 
 }
