@@ -19,6 +19,9 @@ Adafruit_MPU6050 mpu;
 // Configuracion Sensor de Luz
 #define TEMT6000_PIN A0 
 
+// Libreria y Configuracion Sensor MAX30102
+
+
 // Libreria y Configuracion Sensores MQ
 #include <MQUnifiedsensor.h>
 #define placa "Arduino UNO"
@@ -75,6 +78,26 @@ static const unsigned char PROGMEM logo_bmp2[] =
   B00000000, B11000000, 
   B00000000, B10000000, 
   };
+
+static const unsigned char PROGMEM Heart_bmp[] =
+{ B00000000, B00000000, 
+  B00000000, B00000000, 
+  B00111000, B00011100,  
+  B01111100, B00111110, 
+  B11111110, B01111111, 
+  B11111110, B11111111, 
+  B01111111, B11111110,  
+  B00111111, B11111100,  
+  B00011111, B11111000,  
+  B00001111, B11110000,  
+  B00000111, B11100000,  
+  B00000011, B11000000,  
+  B00000001, B00000000, 
+  B00000000, B00000000,  
+  B00000000, B00000000, 
+  B00000000, B00000000, 
+};
+
 // Declaracion de Variables
 
 // Botones
@@ -143,6 +166,8 @@ void setup() {
   display.println("         LISTO!");
   display.display();
   delay(1000);
+
+  // Sensor MAX30102
   
   if(isinf(calcR0)) {Serial.println("Warning: Conection issue founded, R0 is infite (Open circuit detected) please check your wiring and supply"); while(1);}
   if(calcR0 == 0){Serial.println("Warning: Conection issue founded, R0 is zero (Analog pin with short circuit to ground) please check your wiring and supply"); while(1);}
@@ -639,6 +664,16 @@ void SensorPulsoSpO2(){
     display.drawBitmap((display.width()  - LOGO_WIDTH ) /1 , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
     display.display();
   }
+  if (Menu2 == 2){
+  
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(17,28);
+    display.println("MAX30102");
+
+    display.drawBitmap((display.width()  - LOGO_WIDTH ) /1 , (display.height() - LOGO_HEIGHT) / 2 , Heart_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
+    display.display();
+  }
 
 }
 void LedNeoPixel(){
@@ -838,6 +873,9 @@ void loop() {
       display.clearDisplay();
       display.display();
       Cleardisplaycount = Cleardisplaycount + 1;
+    }
+    if (Menu2 == 3){
+      Menu2 = Menu2 - 1;
     }
     SensorPulsoSpO2();
     delay(100);
