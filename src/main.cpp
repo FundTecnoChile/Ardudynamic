@@ -21,22 +21,67 @@ Adafruit_MPU6050 mpu;
 
 // Libreria y Configuracion Sensor MAX30102
 
+#include "MAX30105.h"
+#include "spo2_algorithm.h"
+
+MAX30105 particleSensor;
+
+#define MAX_BRIGHTNESS 255
+
+#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__)
+//Arduino Uno doesn't have enough SRAM to store 100 samples of IR led data and red led data in 32-bit format
+//To solve this problem, 16-bit MSB of the sampled data will be truncated. Samples become 16-bit data.
+uint16_t irBuffer[100]; //infrared LED sensor data
+uint16_t redBuffer[100];  //red LED sensor data
+#else
+uint32_t irBuffer[100]; 
+uint32_t redBuffer[100];  
+#endif
+
+int32_t bufferLength; 
+int32_t spo2; 
+int8_t validSPO2; 
+int32_t heartRate; 
+int8_t validHeartRate; 
+
+byte pulseLED = 11; 
+byte readLED = 13; 
+
+int Pulso;
+int oxigeno; 
 
 // Libreria y Configuracion Sensores MQ
 #include <MQUnifiedsensor.h>
 #define placa "Arduino UNO"
 #define Voltage_Resolution 5
 #define pin A6 //Entrada Analoga
-#define type "MQ-135" //MQ135
+#define typemq "MQ-135" //MQ135
 #define ADC_Bit_Resolution 10 // Para Arduino UNO/MEGA/NANO
 #define RatioMQ135CleanAir 3.6//RS / R0 = 3.6 ppm  
-MQUnifiedsensor MQ135(placa, Voltage_Resolution, ADC_Bit_Resolution, pin, type);
+MQUnifiedsensor MQ135(placa, Voltage_Resolution, ADC_Bit_Resolution, pin, typemq);
 
 // Libreria y Configuracion Ultrasonico
 #include <NewPing.h>
 const int UltrasonicPin = 4;
 const int MaxDistance = 200;
 NewPing sonar(UltrasonicPin, UltrasonicPin, MaxDistance);
+
+// LED WS2812b
+
+#include <Adafruit_NeoPixel.h>
+#define PINRGB        25 
+#define NUMPIXELS 16 
+Adafruit_NeoPixel pixels(NUMPIXELS, PINRGB, NEO_GRB + NEO_KHZ800);
+#define DELAYVAL 100
+
+
+//Servo
+
+
+#include <Servo.h>
+Servo myservo;  
+int pos = 0;  
+int pos0 = 0;  
 
 //Dibujo de Flechas Laterales
 #define LOGO_HEIGHT   16
@@ -125,7 +170,7 @@ const int BIB = 41;
 byte velocidad = 100;  
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   if (!mpu.begin()) {
     Serial.println("Sensor init failed");
     while (1)
@@ -168,11 +213,48 @@ void setup() {
   delay(1000);
 
   // Sensor MAX30102
+
+  pinMode(pulseLED, OUTPUT);
+  pinMode(readLED, OUTPUT);
+
+  // Initialize sensor
+  if (!particleSensor.begin(Wire, I2C_SPEED_FAST)) //Use default I2C port, 400kHz speed
+  {
+    Serial.println(F("MAX30105 was not found. Please check wiring/power."));
+    while (1);
+  }
+
+  byte ledBrightness = 60; //Options: 0=Off to 255=50mA
+  byte sampleAverage = 4; //Options: 1, 2, 4, 8, 16, 32
+  byte ledMode = 2; //Options: 1 = Red only, 2 = Red + IR, 3 = Red + IR + Green
+  byte sampleRate = 100; //Options: 50, 100, 200, 400, 800, 1000, 1600, 3200
+  int pulseWidth = 411; //Options: 69, 118, 215, 411
+  int adcRange = 4096; //Options: 2048, 4096, 8192, 16384
+
+  particleSensor.setup(ledBrightness, sampleAverage, ledMode, sampleRate, pulseWidth, adcRange); //Configure sensor with these settings
+  
+  //WS2812b
+
+  pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+  
+
+  // Sensores MQ
   
   if(isinf(calcR0)) {Serial.println("Warning: Conection issue founded, R0 is infite (Open circuit detected) please check your wiring and supply"); while(1);}
   if(calcR0 == 0){Serial.println("Warning: Conection issue founded, R0 is zero (Analog pin with short circuit to ground) please check your wiring and supply"); while(1);}
   Serial.println("** Lectures from MQ-135 ****");
   Serial.println("|    CO   |  Alcohol |   CO2  |  Tolueno  |  NH4  |  Acteona  |");  
+  
+  //LEDS RGB
+
+  pinMode(30, OUTPUT);
+  pinMode(31, OUTPUT);
+  pinMode(29, OUTPUT);
+  pinMode(27, OUTPUT);
+
+  //Servo
+  
+  myservo.attach(34);
 
   pinMode(inputPin1, INPUT);
   pinMode(inputPin2, INPUT);
@@ -184,7 +266,10 @@ void setup() {
   pinMode(AIB, OUTPUT);
   pinMode(BIA, OUTPUT);
   pinMode(BIB, OUTPUT);
+
   display.clearDisplay();
+  pixels.clear();
+  pixels.show();
 
 }
 void SensorGas(){
@@ -323,18 +408,12 @@ void SensorGas(){
 
      //Menu Inferior
 
-    // display.setCursor(90,50);
-    // display.println("------");
      display.setCursor(0,50);
      display.println("------");
      display.setCursor(32,55);
-    // display.println("|");
-    // display.setCursor(88,55);
      display.println("|");
      display.setCursor(1,55);
      display.println(" Back");
-     // display.setCursor(95,55);
-     // display.println("Enter");
      display.display();
 
   }
@@ -362,18 +441,12 @@ void SensorAudio(){
 
     //Menu Inferior
 
-    //display.setCursor(90,50);
-    //display.println("------");
     display.setCursor(0,50);
     display.println("------");
     display.setCursor(32,55);
     display.println("|");
-    //display.setCursor(88,55);
-    //display.println("|");
     display.setCursor(1,55);
     display.println(" Back");
-    //display.setCursor(95,55);
-    //display.println("Enter");
     display.display();
   }
 }
@@ -400,19 +473,13 @@ void SensorUltrasonic(){
 
     //Menu Inferior
 
-    //display.setCursor(90,50);
-    //display.println("------");
     display.setCursor(0,50);
     display.println("------");
     display.setCursor(32,55);
     display.println("|");
-    //display.setCursor(88,55);
-    //display.println("|");
     display.setCursor(1,55);
     display.println(" Back");
-    //display.setCursor(95,55);
-    //display.println("Enter");
-
+    
     display.setTextSize(2);
     display.setTextColor(WHITE);
     display.setCursor(12,5);
@@ -514,18 +581,12 @@ void SensorAcelGyro(){
 
     //Menu Inferior
 
-    //display.setCursor(90,50);
-    //display.println("------");
     display.setCursor(0,50);
     display.println("------");
     display.setCursor(32,55);
     display.println("|");
-    //display.setCursor(88,55);
-    //display.println("|");
     display.setCursor(1,55);
     display.println(" Back");
-    //display.setCursor(95,55);
-    //display.println("Enter");
 
     display.setTextSize(0);
     display.setTextColor(WHITE);
@@ -583,18 +644,14 @@ void SensorLuz(){
 
     //Menu Inferior
 
-    //display.setCursor(90,50);
-    //display.println("------");
     display.setCursor(0,50);
     display.println("------");
     display.setCursor(32,55);
     display.println("|");
-    //display.setCursor(88,55);
-    //display.println("|");
+
     display.setCursor(1,55);
     display.println(" Back");
-    //display.setCursor(95,55);
-    //display.println("Enter");
+
     display.setTextSize(2);
     display.setTextColor(WHITE);
     display.setCursor(0,24);
@@ -649,68 +706,477 @@ void SensorEncoder(){
 }
 void SensorPulsoSpO2(){
   if (Menu2 == 1){
-    Serial.println("Pantalla 5");
+     Serial.println("Pantalla 7");
 
-    //Nombre Pantalla
+     //Nombre Pantalla
 
-    display.setTextSize(2);
-    display.setTextColor(WHITE);
-    display.setCursor(17,28);
-    display.println("MAX30102");
+     display.setTextSize(2);
+     display.setTextColor(WHITE);
+     display.setCursor(17,28);
+     display.println("MAX30102");
 
-    //Flechas Laterales
+     //Flechas Laterales
     
-    display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
-    display.drawBitmap((display.width()  - LOGO_WIDTH ) /1 , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
-    display.display();
-  }
+     display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
+     display.drawBitmap((display.width()  - LOGO_WIDTH ) /1 , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
+     display.display();
+    }
   if (Menu2 == 2){
   
-    display.setTextSize(2);
-    display.setTextColor(WHITE);
-    display.setCursor(17,28);
-    display.println("MAX30102");
+     display.setTextSize(0);
+     display.setTextColor(WHITE);
 
-    display.drawBitmap((display.width()  - LOGO_WIDTH ) /1 , (display.height() - LOGO_HEIGHT) / 2 , Heart_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
-    display.display();
+     //Menu Inferior
+
+ 
+     display.setCursor(0,50);
+     display.println("------");
+     display.setCursor(32,55);
+     display.println("|");
+
+     display.setCursor(1,55);
+     display.println(" Back");
+
+
+     display.setTextSize(2);
+     display.setTextColor(WHITE);
+     display.setCursor(12,5);
+     display.println("PPM | H2O");
+     display.display();
+     
+     if(particleSensor.getIR() <= 50000 && Pulso != 0 && oxigeno != 0 && heartRate <= 300 && heartRate >= 0 && spo2 <= 100 && spo2 >= 0){
+
+       display.setCursor(1,26);
+       display.println(Pulso, DEC);
+       display.setCursor(70,26);
+       display.println(oxigeno, DEC);
+       display.setCursor(110,26);
+       display.println("%");
+       display.drawBitmap((display.width()  - LOGO_WIDTH ) /2.8 , (display.height() - LOGO_HEIGHT) / 2 , Heart_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
+       display.display();
+       
+     }
+
+      while (particleSensor.getIR() >= 50000)
+    {
+    
+      bufferLength = 100; //buffer length of 100 stores 4 seconds of samples running at 25sps
+
+      //read the first 100 samples, and determine the signal range
+      for (byte i = 0 ; i < bufferLength ; i++)
+      {
+       while (particleSensor.available() == false) //do we have new data?
+      particleSensor.check(); //Check the sensor for new data
+
+      redBuffer[i] = particleSensor.getRed();
+      irBuffer[i] = particleSensor.getIR();
+      particleSensor.nextSample(); //We're finished with this sample so move to next sample
+
+      Serial.print(F("red="));
+      Serial.print(redBuffer[i], DEC);
+      Serial.print(F(", ir="));
+      Serial.println(irBuffer[i], DEC);
+      display.setTextSize(2);
+      display.setTextColor(WHITE);
+      display.setCursor(12,28);
+      display.println("Espere...");
+      display.display();
+      display.clearDisplay();
+      }
+
+      //calculate heart rate and SpO2 after first 100 samples (first 4 seconds of samples)
+      maxim_heart_rate_and_oxygen_saturation(irBuffer, bufferLength, redBuffer, &spo2, &validSPO2, &heartRate, &validHeartRate);
+
+      //Continuously taking samples from MAX30102.  Heart rate and SpO2 are calculated every 1 second
+      while (1)
+      {
+      //dumping the first 25 sets of samples in the memory and shift the last 75 sets of samples to the top
+      for (byte i = 25; i < 100; i++)
+      {
+      redBuffer[i - 25] = redBuffer[i];
+      irBuffer[i - 25] = irBuffer[i];
+      }
+
+      //take 25 sets of samples before calculating the heart rate.
+      for (byte i = 75; i < 100; i++)
+      {
+      while (particleSensor.available() == false) //do we have new data?
+        particleSensor.check(); //Check the sensor for new data
+
+      digitalWrite(readLED, !digitalRead(readLED)); //Blink onboard LED with every data read
+      
+      display.setTextSize(0);
+      display.setTextColor(WHITE);
+      display.setCursor(0,50);
+      display.println("------");
+      display.setCursor(32,55);
+      display.println("|");
+      display.setCursor(1,55);
+      display.println(" Back");
+      
+
+      display.setTextSize(2);
+      display.setTextColor(WHITE);
+      display.setCursor(12,5);
+      display.println("PPM | H2O");
+      display.display();
+     
+      display.drawBitmap((display.width()  - LOGO_WIDTH ) /2.8 , (display.height() - LOGO_HEIGHT) / 2 , Heart_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
+      display.display();
+
+      redBuffer[i] = particleSensor.getRed();
+      irBuffer[i] = particleSensor.getIR();
+      particleSensor.nextSample(); //We're finished with this sample so move to next sample
+
+      //send samples and calculation result to terminal program through UART
+      Serial.print(F("red="));
+      Serial.print(redBuffer[i], DEC);
+      Serial.print(F(", ir="));
+      Serial.print(irBuffer[i], DEC);
+
+      Serial.print(F(", HR="));
+      Serial.print(heartRate, DEC);
+
+      Serial.print(F(", HRvalid="));
+      Serial.print(validHeartRate, DEC);
+
+      Serial.print(F(", SPO2="));
+      Serial.print(spo2, DEC);
+
+      Serial.print(F(", SPO2Valid="));
+      Serial.println(validSPO2, DEC);
+      
+      
+      Serial.print(heartRate);
+      
+
+      if (Pulso != heartRate){
+        Pulso = heartRate;
+        display.clearDisplay();
+      }
+      
+      if (oxigeno != spo2){
+        oxigeno = spo2;
+        display.clearDisplay();
+      }
+
+      if(heartRate <= 300 && heartRate >= 0 && spo2 <= 100 && spo2 >= 0){
+       display.setCursor(1,26);
+       display.println(Pulso, DEC);
+       display.setCursor(70,26);
+       display.println(oxigeno, DEC);
+       display.setCursor(110,26);
+       display.println("%");
+       display.display();
+      // display.clearDisplay();
+       Serial.print(Pulso);
+      }
+
+      }
+      if (particleSensor.getIR() <= 50000){
+        break;
+      }
+
+      //After gathering 25 new samples recalculate HR and SP02
+      maxim_heart_rate_and_oxygen_saturation(irBuffer, bufferLength, redBuffer, &spo2, &validSPO2, &heartRate, &validHeartRate);
+      }
+      
+      
+    }
+  
+   
   }
 
 }
 void LedNeoPixel(){
-  Serial.println("Pantalla 8");
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(44,5);
-  display.println("WS2812b");
-  display.setCursor(0,12);
-  display.println("_____________________");
-  display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.drawBitmap((display.width()  - LOGO_WIDTH )  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.display();
+    Serial.println("Pantalla 8");
+    if (Menu2 == 1){
+     //Nombre Pantalla
+
+     display.setTextSize(2);
+     display.setTextColor(WHITE);
+     display.setCursor(25,28);
+     display.println("WS2812b");
+
+     //Flechas Laterales
+    
+     display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
+     display.drawBitmap((display.width()  - LOGO_WIDTH ) /1 , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
+     display.display();
+     pixels.clear();
+     pixels.show();
+    }
+    if (Menu2 == 2){
+    
+      display.setTextSize(2);
+      display.setTextColor(WHITE);
+      display.setCursor(35,20);
+      display.println("Verde");
+      display.setTextSize(0);
+      display.setTextColor(WHITE);
+
+      //Menu Inferior
+
+      display.setTextSize(0);
+      display.setTextColor(WHITE);
+      display.setCursor(90,50);
+      display.println("------");
+      display.setCursor(0,50);
+      display.println("------");
+      display.setCursor(32,55);
+      display.println("|");
+      display.setCursor(88,55);
+      display.println("|");
+      display.setCursor(1,55);
+      display.println(" Back");
+      display.setCursor(95,55);
+      display.println("Rojo");
+      display.display();
+
+      pixels.clear(); 
+      for(int i=0; i<NUMPIXELS; i++) { 
+      pixels.setPixelColor(i, pixels.Color(0, 200, 0));
+      pixels.show();  
+      delay(DELAYVAL); 
+     }
+    }
+    if (Menu2 == 3){
+      display.setTextSize(2);
+      display.setTextColor(WHITE);
+      display.setCursor(40,20);
+      display.println("Rojo");
+      
+      //Menu Inferior
+      
+      display.setTextSize(0);
+      display.setTextColor(WHITE);
+      display.setCursor(90,50);
+      display.println("------");
+      display.setCursor(0,50);
+      display.println("------");
+      display.setCursor(32,55);
+      display.println("|");
+      display.setCursor(88,55);
+      display.println("|");
+      display.setCursor(1,55);
+      display.println("Verde");
+      display.setCursor(95,55);
+      display.println("Azul");
+      display.display();
+
+      pixels.clear(); 
+      for(int i=0; i<NUMPIXELS; i++) { 
+      pixels.setPixelColor(i, pixels.Color(200, 0, 0));
+      pixels.show();   
+      delay(DELAYVAL); 
+     }
+    }
+    if (Menu2 == 4){
+
+      display.setTextSize(2);
+      display.setTextColor(WHITE);
+      display.setCursor(40,20);
+      display.println("Azul");
+      display.setTextSize(0);
+      display.setTextColor(WHITE);
+
+      //Menu Inferior
+
+
+      display.setCursor(0,50);
+      display.println("------");
+      display.setCursor(32,55);
+      display.println("|");
+      display.setCursor(1,55);
+      display.println(" Rojo");
+      display.display();
+
+      pixels.clear(); 
+      for(int i=0; i<NUMPIXELS; i++) { 
+      pixels.setPixelColor(i, pixels.Color(0, 0, 200));
+      pixels.show();  
+      delay(DELAYVAL); 
+     }
+    }
 }
 void NormalLeds(){
-  Serial.println("Pantalla 9");
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(50,5);
-  display.println("LEDs");
-  display.setCursor(0,12);
-  display.println("_____________________");
-  display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.drawBitmap((display.width()  - LOGO_WIDTH )  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.display();
+  if (Menu2 == 1){
+     Serial.println("Pantalla 9");
+
+     //Nombre Pantalla
+
+     display.setTextSize(2);
+     display.setTextColor(WHITE);
+     display.setCursor(40,28);
+     display.println("LEDs");
+
+     //Flechas Laterales
+    
+     display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
+     display.drawBitmap((display.width()  - LOGO_WIDTH ) /1 , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
+     display.display();
+    }
+
+  if (Menu2 == 2){
+    display.setTextSize(0);
+    display.setTextColor(WHITE);
+
+    //Menu Inferior
+
+ 
+    display.setCursor(0,50);
+    display.println("------");
+    display.setCursor(32,55);
+    display.println("|");
+    display.setCursor(1,55);
+    display.println(" Back");
+    display.display();
+    delay(2000);
+
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(30,20);
+    display.println("Blanco");
+    display.display();
+   
+    digitalWrite(30, HIGH);   // turn the LED on (HIGH is the voltage level)
+    delay(1000);
+
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(40,20);
+    display.println("Rojo");
+    display.display();
+
+    digitalWrite(30, LOW);   // turn the LED on (HIGH is the voltage level)
+    digitalWrite(31, HIGH);
+    delay(1000);
+
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(35,20);
+    display.println("Verde");
+    display.display();
+
+    digitalWrite(31, LOW);
+    digitalWrite(29, HIGH);
+    delay(1000);
+
+    display.clearDisplay();
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(40,20);
+    display.println("Azul");
+    display.display();
+
+    digitalWrite(29, LOW);
+    digitalWrite(27, HIGH);
+    delay(1000);
+
+    digitalWrite(27, LOW);
+    display.clearDisplay();
+    display.display();
+  }
+
 }
 void ServoMoved(){
-  Serial.println("Pantalla 10");
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(35,5);
-  display.println("Servo Motor");
-  display.setCursor(0,12);
-  display.println("_____________________");
-  display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.drawBitmap((display.width()  - LOGO_WIDTH )  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.display();
+  if (Menu2 == 1){
+    
+    Serial.println("Pantalla 10");
+    //Nombre Pantalla
+
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(35,17);
+    display.println("Servo");
+    display.setCursor(34,37);
+    display.println("Motor");
+
+    //Flechas Laterales
+
+    display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 2  , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
+    display.drawBitmap((display.width()  - LOGO_WIDTH ) / 1 , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
+    display.display();
+
+    myservo.write(pos0); 
+  }
+  if (Menu2 == 2){
+
+    display.setTextSize(0);
+    display.setTextColor(WHITE);
+
+    //Menu Inferior
+
+    display.setCursor(0,50);
+    display.println("------");
+    display.setCursor(32,55);
+    display.println("|");
+
+    display.setCursor(1,55);
+    display.println(" Back");
+
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(10,24);
+    display.println("Angle:");
+    display.display();
+
+    for (pos = 0; pos <= 180; pos += 1) { // goes from 0 degrees to 180 degrees
+    // in steps of 1 degree
+    myservo.write(pos);              // tell servo to go to position in variable 'pos'
+    display.setTextSize(0);
+    display.setTextColor(WHITE);
+    display.setCursor(0,50);
+    display.println("------");
+    display.setCursor(32,55);
+    display.println("|");
+    display.setCursor(1,55);
+    display.println(" Back");
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(80,24);
+    display.println(pos);
+    display.setCursor(10,24);
+    display.println("Angle:");
+    display.display();
+    display.clearDisplay();
+    delay(15);                       // waits 15ms for the servo to reach the position
+    Back=digitalRead(inputPin4);
+    if(Back == HIGH){
+      break;
+      Menu2 = Menu2 - 1;
+    }
+  }
+    for (pos = 180; pos >= 0; pos -= 1) { // goes from 180 degrees to 0 degrees
+    display.setTextSize(0);
+    display.setTextColor(WHITE);
+    display.setCursor(0,50);
+    display.println("------");
+    display.setCursor(32,55);
+    display.println("|");
+    display.setCursor(1,55);
+    display.println(" Back");
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(80,24);
+    display.println(pos);
+    display.setCursor(10,24);
+    display.println("Angle:");
+    display.display();
+    display.clearDisplay();
+    myservo.write(pos);              // tell servo to go to position in variable 'pos'
+    delay(15);                       // waits 15ms for the servo to reach the position
+    Back=digitalRead(inputPin4);
+    if(Back == HIGH){
+      break;  
+      Menu2 = Menu2 - 1;
+    }
+  }
+  
+  }
 }
 void PuenteHmotor(){
   Serial.println("Pantalla 11");
@@ -769,7 +1235,7 @@ void loop() {
   if((Der == HIGH) && (Menu2 == 1)){
      Menu = Menu + 1;
      if(Menu == 15){
-       Menu = Menu - 14;
+       Menu = Menu - 1;
      }
      if(Cleardisplaycount == 1){
         Cleardisplaycount = Cleardisplaycount - 1;
@@ -778,15 +1244,15 @@ void loop() {
   if((Izq == HIGH) && (Menu2 == 1)){
      Menu = Menu - 1;
      if(Menu == 0){
-       Menu = Menu + 14;
+       Menu = Menu + 1;
      }
      if(Cleardisplaycount == 1){
         Cleardisplaycount = Cleardisplaycount - 1;
      }
   }
-  if((Enter == HIGH) && (Menu2 != 3)){
+  if((Enter == HIGH) && (Menu2 != 5)){
     Menu2 = Menu2 + 1;
-    if (Menu2  == 4){
+    if (Menu2  == 5){
       Menu2 = Menu2 - 1;
     }
     if(Cleardisplaycount == 1){
@@ -894,6 +1360,9 @@ void loop() {
       display.clearDisplay();
       display.display();
       Cleardisplaycount = Cleardisplaycount + 1;
+    }
+    if (Menu2 == 3){
+      Menu2 = Menu2 - 1;
     }
     NormalLeds();
     delay(100);
