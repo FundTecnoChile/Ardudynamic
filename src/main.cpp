@@ -77,11 +77,39 @@ Adafruit_NeoPixel pixels(NUMPIXELS, PINRGB, NEO_GRB + NEO_KHZ800);
 
 //Servo
 
-
 #include <Servo.h>
 Servo myservo;  
 int pos = 0;  
 int pos0 = 0;  
+
+//LCD 
+
+#include <LiquidCrystal_I2C.h>
+LiquidCrystal_I2C lcd(0x27,16,2);
+
+//Buzzer
+
+#include "pitches.h"
+int melodia[] = {
+  NOTE_FS5, NOTE_FS5, NOTE_D5, NOTE_B4, NOTE_B4, NOTE_E5, 
+  NOTE_E5, NOTE_E5, NOTE_GS5, NOTE_GS5, NOTE_A5, NOTE_B5, 
+  NOTE_A5, NOTE_A5, NOTE_A5, NOTE_E5, NOTE_D5, NOTE_FS5, 
+  NOTE_FS5, NOTE_FS5, NOTE_E5, NOTE_E5, NOTE_FS5, NOTE_E5
+};
+int duraciones[] = {
+  8, 8, 8, 4, 4, 4, 
+  4, 5, 8, 8, 8, 8, 
+  8, 8, 8, 4, 4, 4, 
+  4, 5, 8, 8, 8, 8
+};
+int sonidoLength = sizeof(melodia)/sizeof(melodia[0]);
+
+//DHT11
+
+#include <DHT.h>
+#define DHTPIN 37
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
 
 //Dibujo de Flechas Laterales
 #define LOGO_HEIGHT   16
@@ -255,6 +283,14 @@ void setup() {
   //Servo
   
   myservo.attach(34);
+
+  //LCD
+
+  lcd.init();
+
+  //DHT11
+
+  dht.begin();
 
   pinMode(inputPin1, INPUT);
   pinMode(inputPin2, INPUT);
@@ -1179,52 +1215,232 @@ void ServoMoved(){
   }
 }
 void PuenteHmotor(){
-  Serial.println("Pantalla 11");
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(30,5);
-  display.println("PuenteH/Motor");
-  display.setCursor(0,12);
-  display.println("_____________________");
-  display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.drawBitmap((display.width()  - LOGO_WIDTH )  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.display();
+  if (Menu2 == 1){
+    
+    Serial.println("Pantalla 11");
+    //Nombre Pantalla
+
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(27,7);
+    display.println("Puente");
+    display.setCursor(60,28);
+    display.println("H");
+    display.setCursor(34,47);
+    display.println("Motor");
+
+    //Flechas Laterales
+
+    display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 2  , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
+    display.drawBitmap((display.width()  - LOGO_WIDTH ) / 1 , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
+    display.display();
+  }
+  if (Menu2 == 2){
+
+    display.setTextSize(0);
+    display.setTextColor(WHITE);
+
+    //Menu Inferior
+
+ 
+    display.setCursor(0,50);
+    display.println("------");
+    display.setCursor(32,55);
+    display.println("|");
+    display.setCursor(1,55);
+    display.println(" Back");
+    display.display();
+    
+  }
 }
 void LiquidCrystalFunc(){
-  Serial.println("Pantalla 12");
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(55,5);
-  display.println("LCD");
-  display.setCursor(0,12);
-  display.println("_____________________");
-  display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.drawBitmap((display.width()  - LOGO_WIDTH )  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.display();
+  if (Menu2 == 1){
+     Serial.println("Pantalla 12");
+
+     //Nombre Pantalla
+
+     display.setTextSize(2);
+     display.setTextColor(WHITE);
+     display.setCursor(45,28);
+     display.println("LCD");
+
+     //Flechas Laterales
+    
+     display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
+     display.drawBitmap((display.width()  - LOGO_WIDTH ) /1 , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
+     display.display();
+     
+     lcd.backlight();
+     lcd.setCursor(0,0);
+     lcd.print("                ");
+     lcd.setCursor(0,1);
+     lcd.print("                ");
+
+    }
+  if (Menu2 == 2){
+
+    display.setTextSize(0);
+    display.setTextColor(WHITE);
+
+    //Menu Inferior
+
+ 
+    display.setCursor(0,50);
+    display.println("------");
+    display.setCursor(32,55);
+    display.println("|");
+    display.setCursor(1,55);
+    display.println(" Back");
+    display.display();
+
+    lcd.backlight();
+    lcd.setCursor(0,0);
+    lcd.print("  Hello,");
+    lcd.setCursor(0,1);
+    lcd.print("        world!");
+  }
 }
 void BuzzerMelody(){
-  Serial.println("Pantalla 13");
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(44,5);
-  display.println("Buzzer");
-  display.setCursor(0,12);
-  display.println("_____________________");
-  display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.drawBitmap((display.width()  - LOGO_WIDTH )  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.display();
+  if (Menu2 == 1){
+    Serial.println("Pantalla 13");
+
+    //Nombre Pantalla
+
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(30,28);
+    display.println("BUZZER");
+    display.setCursor(0,12);
+    
+    //Flechas Laterales
+
+    display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
+    display.drawBitmap((display.width()  - LOGO_WIDTH ) / 1 , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
+    display.display();
+  }
+  if (Menu2 == 2){
+
+    display.setTextSize(0);
+    display.setTextColor(WHITE);
+
+    //Menu Inferior
+
+ 
+    display.setCursor(0,50);
+    display.println("------");
+    display.setCursor(32,55);
+    display.println("|");
+    display.setCursor(1,55);
+    display.println(" Back");
+    display.display();
+
+   /*
+    for (int estanota = 0; estanota < sonidoLength; estanota++){
+    // determine the duration of the notes that the computer understands
+    // divide 1000 by the value, so the first note lasts for 1000/8 milliseconds
+    int duracion = 1000/ duraciones[estanota];
+    tone(50, melodia[estanota], duracion);
+    // pause between notes
+    int pausa = duracion * 1.3;
+    delay(pausa);
+    // stop the tone
+    noTone(8);
+    }
+    */
+  }
 }
-void Created_Engine(){
-  Serial.println("Pantalla 14");
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(44,5);
-  display.println("Creadores");
-  display.setCursor(0,12);
-  display.println("_____________________");
-  display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
-  display.drawBitmap((display.width()  - LOGO_WIDTH )  , (display.height() - LOGO_HEIGHT) / 64 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 1);
-  display.display();
+void DHT_11(){
+  
+    float h = dht.readHumidity();
+    float t = dht.readTemperature();
+
+  if (Menu2 == 1){
+    
+     Serial.println("Pantalla 12");
+
+     //Nombre Pantalla
+
+     display.setTextSize(2);
+     display.setTextColor(WHITE);
+     display.setCursor(35,28);
+     display.println("DHT11");
+
+     //Flechas Laterales
+    
+     display.drawBitmap((display.width()  - LOGO_WIDTH ) / 128  , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 2);
+     display.drawBitmap((display.width()  - LOGO_WIDTH ) /1 , (display.height() - LOGO_HEIGHT) / 2 , logo_bmp2, LOGO_WIDTH, LOGO_HEIGHT, 2);
+     display.display();
+     
+    }
+  if (Menu2 == 2){
+
+    display.setTextSize(0);
+    display.setTextColor(WHITE);
+
+    //Menu Inferior
+
+ 
+    display.setCursor(90,50);
+    display.println("------");
+    display.setCursor(0,50);
+    display.println("------");
+    display.setCursor(32,55);
+    display.println("|");
+    display.setCursor(88,55);
+    display.println("|");
+    display.setCursor(1,55);
+    display.println(" Back");
+    display.setCursor(95,55);
+    display.println("Enter");
+
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(40,1);
+    display.println("Temp:");
+    display.setCursor(100,24);
+    display.println("C");
+    display.display();
+
+
+    display.setCursor(20,24);
+    display.println(t);
+    display.display();
+    display.clearDisplay();
+    delay(50);
+
+  }
+  if (Menu2 == 3){
+
+    display.setTextSize(0);
+    display.setTextColor(WHITE);
+
+    //Menu Inferior
+
+    display.setCursor(0,50);
+    display.println("------");
+    display.setCursor(32,55);
+    display.println("|");
+    display.setCursor(1,55);
+    display.println(" Back");
+    
+
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(40,1);
+    display.println("Hum%:");
+    display.setCursor(100,24);
+    display.println("%");
+    display.display();
+
+
+    display.setCursor(20,24);
+    display.println(h);
+    display.display();
+    display.clearDisplay();
+    delay(50);
+
+
+  }
 }
 void loop() {
   Izq=digitalRead(inputPin1);
@@ -1274,6 +1490,9 @@ void loop() {
       display.display();
       Cleardisplaycount = Cleardisplaycount + 1;
     }
+    if (Menu2 == 4){
+      Menu2 = Menu2 - 1;
+    }
     SensorGas();
     delay(100);
   }
@@ -1306,6 +1525,9 @@ void loop() {
       display.clearDisplay();
       display.display();
       Cleardisplaycount = Cleardisplaycount + 1;
+    }
+    if (Menu2 == 4){
+      Menu2 = Menu2 - 1;
     }
     SensorAcelGyro();
     delay(100);
@@ -1352,6 +1574,9 @@ void loop() {
       display.display();
       Cleardisplaycount = Cleardisplaycount + 1;
     }
+    if (Menu2 == 5){
+      Menu2 = Menu2 - 1;
+    }
     LedNeoPixel();
     delay(100);
   }
@@ -1373,6 +1598,9 @@ void loop() {
       display.display();
       Cleardisplaycount = Cleardisplaycount + 1;
     }
+    if (Menu2 == 3){
+      Menu2 = Menu2 - 1;
+    }
     ServoMoved();
     delay(100);
   }
@@ -1381,6 +1609,9 @@ void loop() {
       display.clearDisplay();
       display.display();
       Cleardisplaycount = Cleardisplaycount + 1;
+    }
+    if (Menu2 == 3){
+      Menu2 = Menu2 - 1;
     }
     PuenteHmotor();
     delay(100);
@@ -1391,6 +1622,9 @@ void loop() {
       display.display();
       Cleardisplaycount = Cleardisplaycount + 1;
     }
+    if (Menu2 == 3){
+      Menu2 = Menu2 - 1;
+    }
     LiquidCrystalFunc();
     delay(100);
   }
@@ -1399,6 +1633,9 @@ void loop() {
       display.clearDisplay();
       display.display();
       Cleardisplaycount = Cleardisplaycount + 1;
+    }
+    if (Menu2 == 3){
+      Menu2 = Menu2 - 1;
     }
     BuzzerMelody();
     delay(100);
@@ -1409,7 +1646,10 @@ void loop() {
       display.display();
       Cleardisplaycount = Cleardisplaycount + 1;
     }
-    Created_Engine();
+    if (Menu2 == 4){
+      Menu2 = Menu2 - 1;
+    }
+    DHT_11();
     delay(100);
   }
 }
